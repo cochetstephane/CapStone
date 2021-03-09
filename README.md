@@ -6,8 +6,10 @@ if (!file.exists("Coursera-SwiftKey.zip")) {
   unzip("Coursera-SwiftKey.zip")
 }
 
-2- Establish the n-grams
+2- Establish the n-grams in report_phase2_ter.Rmd
 
-3- A step further with LDA Topic modelling
+3- A step further with LDA Topic modelling in Report_Phase2_quanteda_1.R
 
-4- The shiny App for a demo tool
+4- Presentation of report on the .html file
+
+5- The shiny App for a demo tool
