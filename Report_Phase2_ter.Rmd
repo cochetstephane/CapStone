@@ -1,0 +1,424 @@
+---
+title: "Report_Further investigation"
+author: "S.Cochet"
+date: "2/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+setwd("~/R_Cap_Stone/final/en_US/Final_release")
+library(tidytext)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(stopwords)
+library(tm)
+library(xfun)
+library(textrecipes)
+library(tokenizers)
+library(data.table)
+library(qdap)
+library(quanteda)
+library(readtext)
+library(stringr)
+```
+
+## Exploratory analysis of the 3 files coming out from:  
+- US_blogs.txt    (200 MB)  
+- US_news.txt     (196 MB)  
+- US_twitter.txt  (160 MB)
+
+Let's count the number of lines in those files:
+
+```{r texts}
+
+filenames <- dir(pattern = "[.]txt$")
+nbr_lines <- sapply(filenames, function(x) length(count.fields(x, sep = "\1")))
+print(nbr_lines)
+
+```
+
+# Starting the exploratory with the shortest text
+Let's review fully the second document which has the minimum number of lines (77258 lines). What is presented herebelow would have the same logic for the other 2 texts. One of the challenges is to be able to build a corpus corresponding to the three texts with the future limit of 1Go (RAM) on shinyapps.io when using it with the prediction algorithm. The size of the corpus will likely be reduced when we define a train_set and a training_set (60% / 40 %) in following steps
+
+```{r}
+#set.seed(123)
+set.seed(1234)
+     #blogs
+     con <- file(filenames[1], "rb")
+     blogs <-  readLines(con, -1L, encoding="UTF-8", skipNul=TRUE) # to read the totality of the file
+     close(con)
+    
+     # news
+     con <- file(filenames[2], "rb")
+     news <-  readLines(con, -1L, encoding="UTF-8", skipNul=TRUE) # to read the totality of the file
+     close(con)
+    
+     # twitter
+     con <- file(filenames[3], "rb")
+     twitter <-  readLines(con, -1L, encoding="UTF-8", skipNul=TRUE) # to read the totality of the file
+     close(con)
+     
+     sampleBlogs <-    blogs[sample(1:length(blogs), round(0.01*length(blogs)))] 
+     sampleNews  <-    news[sample(1:length(news), round(0.01*length(news)))]
+     sampleTwitter <-  twitter[sample(1:length(twitter), round(0.01*length(twitter)))]
+     
+     rm(blogs, news, twitter)
+     
+     #saveRDS(sampleBlogs, "sampleBlogs.RDS")
+     #saveRDS(sampleNews, "sampleNews.RDS")
+     #saveRDS(sampleTwitter, "sampleTwitter.rds")
+     
+```
+
+```{r  Elaboration_of_the_file}
+#rm(list=ls())
+#sampleBlogs <- readRDS("sampleBlogs.RDS")
+#sampleNews <- readRDS("sampleNews.RDS")
+#sampleTwitter <- readRDS("sampleTwitter.RDS")
+
+sampleBlogs <- gsub(pattern = "\\b[A-z]\\b{1}", replace = " ", sampleBlogs)  # remove single letters
+sampleBlogs <- gsub(pattern = "[<->]", replace = " ", sampleBlogs)  # removal < and >
+#sampleBlogs <- gsub(pattern = REGEX, replace = " ", sampleBlogs)  # for emoticons, symbols and transport symbol
+sampleBlogs <-  str_replace_all(sampleBlogs, "[[:punct:]]", "")  # removal of special characters
+sampleBlogs <- replace_symbol(sampleBlogs)
+
+sampleNews <- gsub(pattern = "\\b[A-z]\\b{1}", replace = " ", sampleNews)     # remove single letters
+sampleNews <- gsub(pattern = "[<->]", replace = " ", sampleNews)  # removal < and >
+sampleNews <-  str_replace_all(sampleNews, "[[:punct:]]", "")  # removal of special characters
+sampleNews <- replace_symbol(sampleNews)
+
+sampleTwitter <- gsub(pattern = "\\b[A-z]\\b{1}", replace = " ", sampleTwitter)   # remove single letters
+sampleTwitter <- gsub(pattern = "[<->]", replace = " ", sampleTwitter)  # removal < and >
+sampleTwitter <-  str_replace_all(sampleTwitter, "[[:punct:]]", "")  # removal of special characters
+sampleTwitter <- replace_symbol(sampleTwitter)
+
+blogs <- data.table(sampleBlogs)
+news <- data.table(sampleNews)
+twitter <- data.table(sampleTwitter)
+
+names(blogs) = names(news) = names(twitter) = "text"
+
+document <- rbind(blogs, news, twitter)  # a data.frame of 42696 elements
+
+#document <-  str_replace_all(document, "[[:punct:]]", "")  # removal of special characters
+#document <- gsub(pattern = "\\b[A-z]\\b{1}", replace = " ", document)
+
+doc.corpus <- corpus(document)
+# doc.corpus[1]
+```
+
+
+ Corpus consisting of 1 document.
+ "The bruschetta however missed the mark Instead of manageab..."
+
+# Cleaning and creating tokens
+
+This is the process of cleaning the text with the following actions:  
+- replace_symbol ($ becomes dollar)  
+- removePonctuation (like , . ? are skipped)  
+- bracketX (remove texts within brackets)  
+- replace_contraction (shouldn't becomes should not)  
+- replace_abreviation (Sr becomes senior)  
+- removeNumbers  (suppress as it gives valuable insight)
+- stripWhitespace (strip extra white space)
+- tolower (change to lower case)
+
+```{r tokens_and_cleaning}
+
+doc.tokens <- tokens(doc.corpus)
+
+doc.tokens <- tokens(doc.tokens, remove_punct = TRUE)
+#doc.tokens <- tokens_select(doc.tokens, stopwords('english'),selection='remove')
+#doc.tokens <- tokens_wordstem(doc.tokens)
+doc.tokens <- tokens_tolower(doc.tokens)
+# need to remove hyperlink www
+
+#doc.tokens <- gsub(pattern = "\\b[A-z]\\b{1}", replace = " ", doc.tokens) # importance to be                                                                              at the end
+#document <-  replace_symbol(document)
+#document <-  removePunctuation(document)
+#document <-  bracketX(document)
+#document <-  replace_contraction(document)
+#document <-  replace_abbreviation(document)
+#document <-  str_remove_all(document, "\"")
+#document <-  str_replace_all(document, "[[:punct:]]", "")  # removal of special characters
+#document <-  gsub("[\\$,]", "", document)
+#document <-  gsub(pattern = "\\b[A-z]\\b{1}", replace = " ", document ) # remove single #letter
+#document <-  tolower(document)
+#document <-  stripWhitespace(document)
+
+saveRDS(doc.tokens, "tokens.rds")
+```
+
+# Quanteda and n-grams creation
+
+tokens of 2, 3 and 4 words are created which are lemmed, and with application of the stop words
+
+```{r token_ngrams}
+token_4 <- tokens_ngrams(doc.tokens, n=4L, skip = 0L, concatenator = " ")  # 87 MB vs 82MB en bis
+token_3 <- tokens_ngrams(doc.tokens, n=3L, skip = 0L, concatenator = " ")  # 77 MB vs 83MB en bis
+token_2 <- tokens_ngrams(doc.tokens, n=2L, skip = 0L, concatenator = " ")  # 50 MB vs 70 MB en bis
+```
+
+# Document Feature Matrix with dfm
+In this phase, stop-words are being removed. That will limit the size of the matrix by removing: the, a, is, are..
+During evaluation with the test phase, we can  easily remove the stop-words from the suite of words entered by the tester in parallel.
+docfreq() defines the apparition of word or n-grams in the matrix
+
+
+```{r dfm}
+
+my_dfm <- dfm(doc.tokens)
+
+top.features.mono <- topfeatures(my_dfm, -1L)
+top.features.mono.df <- data.frame(top.features.mono)
+top.features.mono.df["unigram"] <- rownames(top.features.mono.df)
+
+draw <- top.features.mono.df[1:20,]
+top.features.mono.plot <- ggplot(draw, aes(x=reorder(unigram, -top.features.mono), y=top.features.mono))
+top.features.mono.plot <- top.features.mono.plot + geom_bar(position = "identity", stat = "identity")
+top.features.mono.plot <- top.features.mono.plot + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Feature") + ylab("Count")
+
+top.features.mono.plot
+
+# We have a data.frame of 46187 lines
+saveRDS(top.features.mono.df, "table_1_gram.rds")
+```
+
+
+# Here is the top 20 words used 
+```{r}
+top <- topfeatures(my_dfm, 15)
+barplot(top, main= "Repartition of top words" , ylab = "Number of repetitions", las=2)
+```
+
+
+#Monogram_wordclouds
+```{r top20}
+textplot_wordcloud(my_dfm, max_words=100, color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
+```
+
+
+```{r dfm}
+
+# With bigrams (n=2)
+
+my_dfm2 <- dfm(token_2)
+
+top.features.bi <- topfeatures(my_dfm2, -1L)
+top.features.bi.df <- data.frame(top.features.bi)
+top.features.bi.df["unigram"] <- rownames(top.features.bi.df)
+
+draw_bi <- top.features.bi.df[1:20,]
+top.features.bi.plot <- ggplot(draw_bi, aes(x=reorder(unigram, -top.features.bi), y=top.features.bi))
+top.features.bi.plot <- top.features.bi.plot
++ geom_bar(position = "identity", stat = "identity")
+top.features.bi.plot <- top.features.bi.plot + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Feature") + ylab("Count")
+top.features.bi.plot
+
+# We have a data.frame of 416753 lines
+saveRDS(top.features.bi.df, "table_2_gram.rds")
+```
+
+
+# Here is the top 20 words used 
+```{r}
+top <- topfeatures(my_dfm2, 15)
+barplot(top, main= "Repartition of top words" , ylab = "Number of repetitions", las=2)
+```
+
+#Monogram_wordclouds
+```{r top20}
+textplot_wordcloud(my_dfm2, max_words=100, color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
+```
+
+
+```{r dfm}
+
+my_dfm3 <- dfm(token_3)
+#my_dfm3_trim <- dfm_trim(my_dfm3, min_termfreq = 20, verbose = TRUE)
+
+top.features.tri <- topfeatures(my_dfm3, -1L)
+#top.features.tri <- topfeatures(my_dfm3_trim, -1L)
+top.features.tri.df <- data.frame(top.features.tri)
+top.features.tri.df["unigram"] <- rownames(top.features.tri.df)
+
+draw_tri <- top.features.tri.df[1:20,]
+top.features.tri.plot <- ggplot(draw, aes(x=reorder(unigram, -top.features.tri), y=top.features.tri))
+top.features.tri.plot <- top.features.tri.plot + geom_bar(position = "identity", stat = "identity")
+top.features.tri.plot <- top.features.tri.plot + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Feature") + ylab("Count")
+#top.features.tri.plot
+
+# We have a data.frame of 46187lines
+saveRDS(top.features.tri.df, "table_3_gram.rds")
+
+```
+
+# Here is the top 20 words used 
+```{r}
+top <- topfeatures(my_dfm3, 15)
+barplot(top, main= "Repartition of top words" , ylab = "Number of repetitions", las=2)
+```
+
+#Monogram_wordclouds
+```{r top20}
+textplot_wordcloud(my_dfm3, max_words=100, color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
+```
+
+```{r dfm}
+
+my_dfm4 <- dfm(token_4)
+
+top.features.quadri <- topfeatures(my_dfm4, -1L)
+top.features.quadri.df <- data.frame(top.features.quadri)
+top.features.quadri.df["unigram"] <- rownames(top.features.quadri.df)
+
+draw_quadri <- top.features.quadri.df[1:20,]
+top.features.quadri.plot <- ggplot(draw, aes(x=reorder(unigram, -top.features.quadri), y=top.features.quadri))
+top.features.quadri.plot <- top.features.quadri.plot + geom_bar(position = "identity", stat = "identity")
+top.features.quadri.plot <- top.features.quadri.plot + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Feature") + ylab("Count")
+#top.features.quadri.plot
+
+# We have a data.frame of 46187lines
+saveRDS(top.features.quadri.df, "table_4_gram.rds")
+
+```
+
+
+# Here is the top 20 words used 
+```{r}
+top <- topfeatures(my_dfm4, 15)
+barplot(top, main= "Repartition of top words" , ylab = "Number of repetitions", las=2)
+```
+
+
+#Monogram_wordclouds
+```{r top20}
+#resize.win(20,20)
+textplot_wordcloud(my_dfm4, max_words=100, color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
+```
+
+# With the usage of tidytest feature
+
+```{r tidytest}
+
+# Etablishemnt of count diagram for n=2
+blogsn_bigrams <- document %>%  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+count_bi <- blogsn_bigrams %>% count(bigram, sort = TRUE)
+
+#saveRDS(count_bi, "count_bi.rds")
+
+bigrams <- blogsn_bigrams %>%
+           separate(bigram, c("word1", "word2"), sep = " ") %>%
+           filter(!word1 %in% stop_words$word) %>%
+           filter(!word2 %in% stop_words$word)
+
+bigrams %>% filter(word1 =="county")
+```
+
+
+```{r}
+bigrams %>% filter(word1 =="grilled")
+```
+
+```{r tidytest}
+
+# Etablishemnt of count diagram for n=3
+blogsn_trigrams <- document %>%  unnest_tokens(bigram, text, token = "ngrams", n = 3)
+
+count_tri <- blogsn_trigrams %>% count(bigram, sort = TRUE)
+
+#saveRDS(count_tri, "count_tri.rds")
+
+trigrams <- blogsn_trigrams %>%
+           separate(bigram, c("word1", "word2", "word3"), sep = " ") %>%
+           filter(!word1 %in% stop_words$word) %>%
+           filter(!word2 %in% stop_words$word) %>%
+           filter(!word3 %in% stop_words$word)
+
+trigrams %>% filter(word1 =="county" & word2=="district")
+```
+```{r tidytest}
+
+# Etablishemnt of count diagram for n=4
+blogsn_quadrigrams <- document %>%  unnest_tokens(bigram, text, token = "ngrams", n = 4)
+
+count_quadri <- blogsn_quadrigrams %>% count(bigram, sort = TRUE)
+
+#saveRDS(count_quadri, "count_quadri.rds")
+
+quagrams <- blogsn_quadrigrams %>%
+           separate(bigram, c("word1", "word2", "word3", "word4"), sep = " ") %>%
+           filter(!word1 %in% stop_words$word) %>%
+           filter(!word2 %in% stop_words$word) %>%
+           filter(!word3 %in% stop_words$word) %>%
+           filter(!word4 %in% stop_words$word)
+
+quagrams %>% filter(word1 =="county")
+```
+```{r}
+quagrams %>% filter(word1 =="grilled")
+```
+
+```{r}
+bigrams %>% filter(word1 =="grilled")
+```
+
+```{r}
+head(count_bi)
+```
+
+```{r}
+head(count_tri)
+```
+
+```{r}
+head(count_quadri)
+```
+
+```{r quanteda}
+# tentative to obtain the same with quanteda but wo succeess so far so I keep using tidytext
+# my_dfm4 <- dfm(token_4)
+freq_dfm4 <- docfreq(my_dfm4)
+top4 <- topfeatures(my_dfm4, 15)
+head(freq_dfm4)
+
+# my_dfm3 <- dfm(token_3)
+freq_dfm3 <- docfreq(my_dfm3)
+top3 <- topfeatures(my_dfm3, 15)
+head(freq_dfm3)
+
+# my_dfm2 <- dfm(token_2)
+freq_dfm2 <- docfreq(my_dfm2)
+top2 <- topfeatures(my_dfm2, 15)
+head(freq_dfm2)
+
+```
+
+```{r top20}
+barplot(top4, main= "Repartition of top words _ 4 words" , ylab = "Number of repetitions", las=2)
+```
+
+
+```{r top20}
+barplot(top3, main= "Repartition of top words _ 3 words" , ylab = "Number of repetitions", las=2)
+```
+
+
+```{r top20}
+barplot(top2, main= "Repartition of top words _ 2 words" , ylab = "Number of repetitions", las=2)
+```
+
+# Conclusions
+
+After the cleaning process detailed above, the three files can be saved as a single .rds file and further splitted into a train_set and test_set chunk
+Tokens and corpus are created and stored on the server of the io.shinyapps. A simple strategy is for example to filter n-grams with the input of the (n-1) words to easily define the outcome with the highest probability for the next outcome word:
+
+### Naives Bayes: P("this clean water") = P("water" | "this clean) * P("this clean")
+            
+For the strategy to define the outcome words when this one is unknown in the corpus of the standard n-grams, one could use the argument skip in the tokens_ngrams feature with the usage of skip (with n=c(2,4) and skip=0:1). That would generate tokens of length 2 to 4 and with one or null elements skipped in the list.
+
+One important aspect would be to define the splitting ratio (60%/40%), the size of n-grams (up to 4 or 5) in order to keep a responsiveness of the shiny apps and keeping in mind the limitation to 1 Go of the free server.
