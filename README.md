@@ -12,4 +12,4 @@ if (!file.exists("Coursera-SwiftKey.zip")) {
 
 4- Presentation of report on the .html file
 
-5- The shiny App for a demo tool
+5- The shiny App for a demo tool on the app.R file
